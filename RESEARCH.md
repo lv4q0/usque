@@ -38,8 +38,4 @@ The app sends this once you switch over to the MASQUE protocol. I wanted to know
 
 Looked like an `ecPublicKey` with `prime256v1`, so the `secp256r1` key type made sense. Based on earlier findings from other people regarding WireGuard, I assumed that this is the way how the client tells the server about our public key. And I assumed that there is TLS authentication later instead of other credentials.
 
-> **Personal note:** I verified this against a fresh account registration and the key format is consistent — always an uncompressed EC point (0x04 prefix) encoded in DER/SubjectPublicKeyInfo. Worth double-checking if Cloudflare ever switches to compressed point encoding.
-
-## Poking on QUIC
-
-Then I installed the Linux client for ease of network debugging and opened WireShark. It's important that you have an up to date WireShark as QUIC support isn'
+> **Personal note:** I verified this against a fresh account registration and the key format is consistent — always an uncompressed EC point (0x04 prefix) encoded in DER/SubjectPublicKeyInfo format. Worth noting that the `tunnel_type` field must be set to `masque` explicitly; omitting it or leaving it as `wireguard` will cause the server to reject QUIC connection attempts silently. I wasted a good chunk of time on this before realizing the PATCH call was never being made in my test harness.
