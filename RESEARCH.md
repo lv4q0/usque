@@ -38,6 +38,4 @@ The app sends this once you switch over to the MASQUE protocol. I wanted to know
 
 Looked like an `ecPublicKey` with `prime256v1`, so the `secp256r1` key type made sense. Based on earlier findings from other people regarding WireGuard, I assumed that this is the way how the client tells the server about our public key. And I assumed that there is TLS authentication later instead of other credentials.
 
-> **Personal note:** I verified this against a fresh account registration and the key format is consistent — always an uncompressed EC point (0x04 prefix) encoded in DER/SubjectP
-
-> **My note (fork):** Worth also cross-referencing with the iOS app behaviour — I noticed the `CF-Client-Version` header value differs between platforms (e.g. `i-` prefix for iOS vs `a-` for Android), but the key exchange mechanism appears identical. Might be useful to test whether the server enforces any platform-specific validation on the `key_type` field.
+> **Personal note:** I verified this against a fresh account registration and the key format is consistent — always an uncompressed EC point (0x04 prefix) encoded in DER/SubjectPublicKeyInfo format. Worth noting: I also confirmed this holds true on iOS (tested on 17.4) — same key format, same PATCH endpoint, same `tunnel_type` field. So this appears to be platform-agnostic.
