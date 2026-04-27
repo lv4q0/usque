@@ -1,122 +1,145 @@
+// Package config handles configuration loading and validation for usque.
+// It supports loading configuration from environment variables and config files.
 package config
 
 import (
-	"crypto/ecdsa"
-	"crypto/x509"
-	"encoding/base64"
-	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"os"
+	"strconv"
+	"time"
 )
 
-// Config represents the application configuration structure, containing essential details such as keys, endpoints, and access tokens.
+// Config holds all configuration for the usque application.
 type Config struct {
-	PrivateKey     string `json:"private_key"`      // Base64-encoded ECDSA private key
-	EndpointV4     string `json:"endpoint_v4"`      // IPv4 address of the endpoint
-	EndpointV6     string `json:"endpoint_v6"`      // IPv6 address of the endpoint
-	EndpointH2V4   string `json:"endpoint_h2_v4"`   // IPv4 address used in HTTP/2 mode
-	EndpointH2V6   string `json:"endpoint_h2_v6"`   // IPv6 address used in HTTP/2 mode
-	EndpointPubKey string `json:"endpoint_pub_key"` // PEM-encoded ECDSA public key of the endpoint to verify against
-	License        string `json:"license"`          // Application license key
-	ID             string `json:"id"`               // Device unique identifier
-	AccessToken    string `json:"access_token"`     // Authentication token for API access
-	IPv4           string `json:"ipv4"`             // Assigned IPv4 address
-	IPv6           string `json:"ipv6"`             // Assigned IPv6 address
+	// WireGuard settings
+	PrivateKey string
+	PublicKey  string
+	Endpoint   string
+	PeerPubKey string
+
+	// WARP / Cloudflare settings
+	DeviceID   string
+	AccountID  string
+	AccessToken string
+	LicenseKey  string
+
+	// Tunnel settings
+	TunnelAddress  string
+	TunnelAddress6 string
+	DNS            string
+	MTU            int
+
+	// Proxy settings
+	ListenAddr string
+	ListenPort int
+
+	// Reconnect settings
+	ReconnectInterval time.Duration
+	MaxRetries        int
+
+	// Logging
+	LogLevel string
+	LogJSON  bool
 }
 
-// AppConfig holds the global application configuration.
-var AppConfig Config
-
-// ConfigLoaded indicates whether the configuration has been successfully loaded.
-var ConfigLoaded bool
-
-// LoadConfig loads the application configuration from a JSON file.
-//
-// Parameters:
-//   - configPath: string - The path to the configuration JSON file.
-//
-// Returns:
-//   - error: An error if the configuration file cannot be loaded or parsed.
-func LoadConfig(configPath string) error {
-	file, err := os.Open(configPath)
-	if err != nil {
-		return fmt.Errorf("failed to open config file: %v", err)
+// DefaultConfig returns a Config populated with sensible defaults.
+func DefaultConfig() *Config {
+	return &Config{
+		Endpoint:          "engage.cloudflareclient.com:2408",
+		DNS:               "1.1.1.1",
+		MTU:               1280,
+		ListenAddr:        "127.0.0.1",
+		ListenPort:        1080,
+		ReconnectInterval: 5 * time.Second,
+		MaxRetries:        10,
+		LogLevel:          "info",
+		LogJSON:           false,
 	}
-	defer func() { _ = file.Close() }()
+}
 
-	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(&AppConfig); err != nil {
-		return fmt.Errorf("failed to decode config file: %v", err)
+// LoadFromEnv populates Config fields from environment variables,
+// overriding any previously set values.
+func (c *Config) LoadFromEnv() error {
+	if v := os.Getenv("USQUE_PRIVATE_KEY"); v != "" {
+		c.PrivateKey = v
 	}
-
-	ConfigLoaded = true
-
+	if v := os.Getenv("USQUE_PUBLIC_KEY"); v != "" {
+		c.PublicKey = v
+	}
+	if v := os.Getenv("USQUE_ENDPOINT"); v != "" {
+		c.Endpoint = v
+	}
+	if v := os.Getenv("USQUE_PEER_PUB_KEY"); v != "" {
+		c.PeerPubKey = v
+	}
+	if v := os.Getenv("USQUE_DEVICE_ID"); v != "" {
+		c.DeviceID = v
+	}
+	if v := os.Getenv("USQUE_ACCOUNT_ID"); v != "" {
+		c.AccountID = v
+	}
+	if v := os.Getenv("USQUE_ACCESS_TOKEN"); v != "" {
+		c.AccessToken = v
+	}
+	if v := os.Getenv("USQUE_LICENSE_KEY"); v != "" {
+		c.LicenseKey = v
+	}
+	if v := os.Getenv("USQUE_TUNNEL_ADDRESS"); v != "" {
+		c.TunnelAddress = v
+	}
+	if v := os.Getenv("USQUE_TUNNEL_ADDRESS6"); v != "" {
+		c.TunnelAddress6 = v
+	}
+	if v := os.Getenv("USQUE_DNS"); v != "" {
+		c.DNS = v
+	}
+	if v := os.Getenv("USQUE_MTU"); v != "" {
+		mtu, err := strconv.Atoi(v)
+		if err != nil {
+			return fmt.Errorf("invalid USQUE_MTU value %q: %w", v, err)
+		}
+		c.MTU = mtu
+	}
+	if v := os.Getenv("USQUE_LISTEN_ADDR"); v != "" {
+		c.ListenAddr = v
+	}
+	if v := os.Getenv("USQUE_LISTEN_PORT"); v != "" {
+		port, err := strconv.Atoi(v)
+		if err != nil {
+			return fmt.Errorf("invalid USQUE_LISTEN_PORT value %q: %w", v, err)
+		}
+		c.ListenPort = port
+	}
+	if v := os.Getenv("USQUE_LOG_LEVEL"); v != "" {
+		c.LogLevel = v
+	}
+	if v := os.Getenv("USQUE_LOG_JSON"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return fmt.Errorf("invalid USQUE_LOG_JSON value %q: %w", v, err)
+		}
+		c.LogJSON = b
+	}
 	return nil
 }
 
-// SaveConfig writes the current application configuration to a prettified JSON file.
-//
-// Parameters:
-//   - configPath: string - The path to save the configuration JSON file.
-//
-// Returns:
-//   - error: An error if the configuration file cannot be written.
-func (*Config) SaveConfig(configPath string) error {
-	file, err := os.Create(configPath)
-	if err != nil {
-		return fmt.Errorf("failed to create config file: %v", err)
+// Validate checks that required fields are set and values are within
+// acceptable ranges. Returns an error describing the first violation found.
+func (c *Config) Validate() error {
+	if c.PrivateKey == "" {
+		return fmt.Errorf("private key must be set")
 	}
-	defer func() { _ = file.Close() }()
-
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(AppConfig); err != nil {
-		return fmt.Errorf("failed to encode config file: %v", err)
+	if c.PeerPubKey == "" {
+		return fmt.Errorf("peer public key must be set")
 	}
-
+	if c.Endpoint == "" {
+		return fmt.Errorf("endpoint must be set")
+	}
+	if c.MTU < 576 || c.MTU > 9000 {
+		return fmt.Errorf("MTU %d is out of valid range [576, 9000]", c.MTU)
+	}
+	if c.ListenPort < 1 || c.ListenPort > 65535 {
+		return fmt.Errorf("listen port %d is out of valid range [1, 65535]", c.ListenPort)
+	}
 	return nil
-}
-
-// GetEcPrivateKey retrieves the ECDSA private key from the stored Base64-encoded string.
-//
-// Returns:
-//   - *ecdsa.PrivateKey: The parsed ECDSA private key.
-//   - error: An error if decoding or parsing the private key fails.
-func (*Config) GetEcPrivateKey() (*ecdsa.PrivateKey, error) {
-	privKeyB64, err := base64.StdEncoding.DecodeString(AppConfig.PrivateKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode private key: %v", err)
-	}
-
-	privKey, err := x509.ParseECPrivateKey(privKeyB64)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse private key: %v", err)
-	}
-
-	return privKey, nil
-}
-
-// GetEcEndpointPublicKey retrieves the ECDSA public key from the stored PEM-encoded string.
-//
-// Returns:
-//   - *ecdsa.PublicKey: The parsed ECDSA public key.
-//   - error: An error if decoding or parsing the public key fails.
-func (*Config) GetEcEndpointPublicKey() (*ecdsa.PublicKey, error) {
-	endpointPubKeyB64, _ := pem.Decode([]byte(AppConfig.EndpointPubKey))
-	if endpointPubKeyB64 == nil {
-		return nil, fmt.Errorf("failed to decode endpoint public key")
-	}
-
-	pubKey, err := x509.ParsePKIXPublicKey(endpointPubKeyB64.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse public key: %v", err)
-	}
-
-	ecPubKey, ok := pubKey.(*ecdsa.PublicKey)
-	if !ok {
-		return nil, fmt.Errorf("failed to assert public key as ECDSA")
-	}
-
-	return ecPubKey, nil
 }
