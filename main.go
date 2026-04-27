@@ -37,7 +37,8 @@ func main() {
 	}
 
 	if *verbose {
-		log.SetFlags(log.LstdFlags | log.Lshortfile)
+		// Include date, time, file, and line number for easier debugging
+		log.SetFlags(log.LstdFlags | log.Lshortfile | log.Lmicroseconds)
 		log.Println("Verbose logging enabled")
 	}
 
