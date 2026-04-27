@@ -4,6 +4,8 @@
 
 Usque is an open-source reimplementation of the Cloudflare WARP client's MASQUE mode. It leverages the [Connect-IP (RFC 9484)](https://datatracker.ietf.org/doc/rfc9484/) protocol and comes with many operation modes including a native tunnel, a SOCKS5 proxy, and a HTTP proxy.
 
+> **Personal fork note:** I'm using this primarily for SOCKS5 proxy mode on Linux amd64. The sections most relevant to my use case are [Registration](#registration), [Enrolling](#enrolling), and [SOCKS5 Proxy Mode](#socks5-proxy-mode-easy-cross-platform).
+
 ## Table of Contents
 
 - [usque](#usque)
